@@ -96,8 +96,16 @@ export default function StoreSettingsPage() {
       const fileName = `logos/${timestamp}_${file.name}`;
       const imageRef = storageRef(storage, fileName);
 
-      // Upload file
+      // Upload file with timeout
       const uploadTask = uploadBytesResumable(imageRef, file);
+
+      // Set timeout untuk upload (30 detik)
+      const uploadTimeout = setTimeout(() => {
+        uploadTask.cancel();
+        toast.error('Upload timeout. Coba lagi atau gunakan URL logo.');
+        setUploading(false);
+        setUploadProgress(0);
+      }, 30000);
 
       uploadTask.on(
         'state_changed',
@@ -106,11 +114,18 @@ export default function StoreSettingsPage() {
           setUploadProgress(progress);
         },
         (error) => {
-          console.error(error);
-          toast.error('Gagal upload gambar');
+          clearTimeout(uploadTimeout);
+          console.error('Upload error:', error);
+          if (error.code === 'storage/unauthorized') {
+            toast.error('Tidak ada izin upload. Gunakan URL logo sebagai gantinya.');
+          } else {
+            toast.error('Gagal upload gambar. Coba gunakan URL logo.');
+          }
           setUploading(false);
+          setUploadProgress(0);
         },
         async () => {
+          clearTimeout(uploadTimeout);
           // Get download URL
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           setLogoUrl(downloadURL);
@@ -119,10 +134,11 @@ export default function StoreSettingsPage() {
           toast.success('Logo berhasil diupload!');
         }
       );
-    } catch (error) {
-      console.error(error);
-      toast.error('Gagal upload gambar');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error('Gagal upload gambar. Gunakan URL logo sebagai gantinya.');
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
