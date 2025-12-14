@@ -29,18 +29,32 @@ export default function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Get user data from database
+      console.log('User authenticated:', user.uid);
+
+      // Get user data from database with timeout
       const userRef = ref(database, `users/${user.uid}`);
-      const snapshot = await get(userRef);
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database timeout')), 10000)
+      );
+      
+      const snapshot = await Promise.race([
+        get(userRef),
+        timeoutPromise
+      ]) as any;
+
+      console.log('Snapshot exists:', snapshot.exists());
 
       if (!snapshot.exists()) {
-        toast.error('Data user tidak ditemukan');
+        console.error('User data not found in database for UID:', user.uid);
+        toast.error('Data user tidak ditemukan. Hubungi administrator.');
         await auth.signOut();
         setLoading(false);
         return;
       }
 
       const userData = snapshot.val();
+      console.log('User data:', userData);
       
       // Store user data in localStorage
       localStorage.setItem('user', JSON.stringify({
@@ -53,19 +67,25 @@ export default function LoginPage() {
       toast.success(`Selamat datang, ${userData.name}!`);
       
       // Redirect based on role
-      if (userData.role === 'admin') {
-        router.push('/');
-      } else if (userData.role === 'kasir') {
-        router.push('/pos');
-      }
+      setTimeout(() => {
+        if (userData.role === 'admin') {
+          router.push('/');
+        } else if (userData.role === 'kasir') {
+          router.push('/pos');
+        }
+      }, 500);
     } catch (error: any) {
-      console.error(error);
+      console.error('Login error:', error);
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         toast.error('Email atau password salah');
       } else if (error.code === 'auth/invalid-email') {
         toast.error('Format email tidak valid');
+      } else if (error.message === 'Database timeout') {
+        toast.error('Koneksi database timeout. Coba lagi.');
+      } else if (error.code === 'PERMISSION_DENIED') {
+        toast.error('Akses ditolak. Periksa database rules.');
       } else {
-        toast.error('Gagal login. Silakan coba lagi');
+        toast.error(`Gagal login: ${error.message || 'Silakan coba lagi'}`);
       }
       setLoading(false);
     }
