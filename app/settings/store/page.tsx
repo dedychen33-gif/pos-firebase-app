@@ -23,7 +23,14 @@ export default function StoreSettingsPage() {
   useEffect(() => {
     const settingsRef = ref(database, 'settings/store');
     
+    // Set timeout untuk loading
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      toast.error('Gagal memuat data. Menggunakan data default.');
+    }, 5000);
+    
     const unsubscribe = onValue(settingsRef, (snapshot) => {
+      clearTimeout(timeoutId);
       const data = snapshot.val();
       if (data) {
         setStoreName(data.name || 'POS System');
@@ -33,9 +40,17 @@ export default function StoreSettingsPage() {
         setLogoUrl(data.logoUrl || '');
       }
       setLoading(false);
+    }, (error) => {
+      clearTimeout(timeoutId);
+      console.error('Error loading store settings:', error);
+      toast.error('Gagal memuat data toko');
+      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, []);
 
   const handleSave = async () => {
