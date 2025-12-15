@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ref, onValue, push, update, remove } from 'firebase/database';
 import { database } from '@/lib/firebase';
+import { localCache } from '@/lib/localCache';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { Plus, Edit2, Trash2, Users, X, ChevronDown, ChevronUp, Package, DollarSign } from 'lucide-react';
@@ -30,17 +31,38 @@ export default function CustomersPage() {
   const [editingPrices, setEditingPrices] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
+    // Load dari cache dulu untuk instant loading
+    const cachedCustomers = localCache.get('customers');
+    const cachedProducts = localCache.get('products');
+
+    if (cachedCustomers) {
+      setCustomers(cachedCustomers);
+      console.log('📦 Loaded customers from cache');
+    }
+
+    if (cachedProducts) {
+      setProducts(cachedProducts);
+      console.log('📦 Loaded products from cache');
+    }
+
+    // Jika ada cache, langsung set loading false
+    if (cachedCustomers && cachedProducts) {
+      setLoading(false);
+    }
+
     const customersRef = ref(database, 'customers');
     const productsRef = ref(database, 'products');
 
     let customersLoaded = false;
     let productsLoaded = false;
 
-    // Set timeout untuk loading
+    // Set timeout untuk loading dari Firebase
     const timeoutId = setTimeout(() => {
       setLoading(false);
       if (!customersLoaded || !productsLoaded) {
-        toast.error('Gagal memuat data. Refresh halaman untuk mencoba lagi.');
+        if (!cachedCustomers || !cachedProducts) {
+          toast.error('Gagal memuat data dari server. Menggunakan data cache.');
+        }
       }
     }, 5000);
 
@@ -52,8 +74,11 @@ export default function CustomersPage() {
           ...cust,
         }));
         setCustomers(customersArray);
+        localCache.set('customers', customersArray); // Save to cache
+        console.log('🔄 Synced customers from Firebase');
       } else {
         setCustomers([]);
+        localCache.set('customers', []);
       }
       customersLoaded = true;
       if (productsLoaded) {
@@ -62,7 +87,9 @@ export default function CustomersPage() {
       }
     }, (error) => {
       console.error('Error loading customers:', error);
-      toast.error('Gagal memuat data customer');
+      if (!cachedCustomers) {
+        toast.error('Gagal memuat data customer');
+      }
       customersLoaded = true;
       if (productsLoaded) {
         clearTimeout(timeoutId);
@@ -78,8 +105,11 @@ export default function CustomersPage() {
           ...prod,
         }));
         setProducts(productsArray);
+        localCache.set('products', productsArray); // Save to cache
+        console.log('🔄 Synced products from Firebase');
       } else {
         setProducts([]);
+        localCache.set('products', []);
       }
       productsLoaded = true;
       if (customersLoaded) {
@@ -88,7 +118,9 @@ export default function CustomersPage() {
       }
     }, (error) => {
       console.error('Error loading products:', error);
-      toast.error('Gagal memuat data produk');
+      if (!cachedProducts) {
+        toast.error('Gagal memuat data produk');
+      }
       productsLoaded = true;
       if (customersLoaded) {
         clearTimeout(timeoutId);
