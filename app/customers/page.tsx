@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
@@ -32,6 +33,17 @@ export default function CustomersPage() {
     const customersRef = ref(database, 'customers');
     const productsRef = ref(database, 'products');
 
+    let customersLoaded = false;
+    let productsLoaded = false;
+
+    // Set timeout untuk loading
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      if (!customersLoaded || !productsLoaded) {
+        toast.error('Gagal memuat data. Refresh halaman untuk mencoba lagi.');
+      }
+    }, 5000);
+
     const unsubscribeCustomers = onValue(customersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -43,6 +55,19 @@ export default function CustomersPage() {
       } else {
         setCustomers([]);
       }
+      customersLoaded = true;
+      if (productsLoaded) {
+        clearTimeout(timeoutId);
+        setLoading(false);
+      }
+    }, (error) => {
+      console.error('Error loading customers:', error);
+      toast.error('Gagal memuat data customer');
+      customersLoaded = true;
+      if (productsLoaded) {
+        clearTimeout(timeoutId);
+        setLoading(false);
+      }
     });
 
     const unsubscribeProducts = onValue(productsRef, (snapshot) => {
@@ -53,10 +78,26 @@ export default function CustomersPage() {
           ...prod,
         }));
         setProducts(productsArray);
+      } else {
+        setProducts([]);
+      }
+      productsLoaded = true;
+      if (customersLoaded) {
+        clearTimeout(timeoutId);
+        setLoading(false);
+      }
+    }, (error) => {
+      console.error('Error loading products:', error);
+      toast.error('Gagal memuat data produk');
+      productsLoaded = true;
+      if (customersLoaded) {
+        clearTimeout(timeoutId);
+        setLoading(false);
       }
     });
 
     return () => {
+      clearTimeout(timeoutId);
       unsubscribeCustomers();
       unsubscribeProducts();
     };
@@ -240,6 +281,25 @@ export default function CustomersPage() {
     setCustomPrice(0);
     setShowModal(true);
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1">
+          <Header />
+          <main className="p-6">
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Memuat data customer...</p>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
